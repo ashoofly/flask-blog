@@ -97,11 +97,12 @@ class Entry(flask_db.Model):
             fts_entry = FTSEntry.get(FTSEntry.entry_id == self.id)
         except FTSEntry.DoesNotExist:
             fts_entry = FTSEntry(entry_id=self.id)
-            force_insert = True
+            fts_entry.content = '\n'.join((self.title, self.content))
+            fts_entry.save(force_insert=True)
+
         else:
-            force_insert = False
-        fts_entry.content = '\n'.join((self.title, self.content))
-        fts_entry.save(force_insert=force_insert)
+            fts_entry.content = '\n'.join((self.title, self.content))
+            FTSEntry.update(content=fts_entry.content).where(FTSEntry.entry_id == self.id)
 
     @classmethod
     def public(cls):
