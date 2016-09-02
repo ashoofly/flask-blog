@@ -57,7 +57,7 @@ oembed_providers = bootstrap_basic(OEmbedCache())
 
 class Entry(flask_db.Model):
     title = CharField()
-    slug = CharField(unique=True)
+    slug = CharField()
     content = TextField()
     published = BooleanField(index=True)
     timestamp = DateTimeField(default=datetime.datetime.now, index=True)
@@ -87,6 +87,7 @@ class Entry(flask_db.Model):
 
         # Store search content.
         self.update_search_index()
+
         return ret
 
     def update_search_index(self):
@@ -141,6 +142,14 @@ class FTSEntry(FTSModel):
 
     class Meta:
         database = database
+
+class Tag(flask_db.Model):
+    tag = CharField(unique=True)
+
+class BlogEntryTags(flask_db.Model):
+    blog_entry = ForeignKeyField(Entry)
+    tag = ForeignKeyField(Tag, related_name="tags")
+
 
 def login_required(fn):
     @functools.wraps(fn)
@@ -200,6 +209,24 @@ def create():
                 title=request.form['title'],
                 content=request.form['content'],
                 published=request.form.get('published') or False)
+
+            # loop through creating tags
+            if request.form.get('tags'):
+                # TODO: Better user input handling here
+                tags = request.form['tags'].split(", ")
+                for t in tags:
+
+                    # creates tag entry in Tag table if doesn't exist yet
+                    try:
+                        tag_model = Tag.get(Tag.tag == t)
+                    except Tag.DoesNotExist:
+                        tag_model = Tag.create(tag=t)
+
+                    # creates row in blog-entry many-to-many relationship table
+                    BlogEntryTags.create(
+                        blog_entry=entry.id,
+                        tag=tag_model.id)
+
             flash('Entry created successfully.', 'success')
             if entry.published:
                 return redirect(url_for('detail', slug=entry.slug))
@@ -263,7 +290,7 @@ def not_found(exc):
     return Response('<h3>Not found</h3>'), 404
 
 def main():
-    database.create_tables([Entry, FTSEntry], safe=True)
+    database.create_tables([Entry, FTSEntry, Tag, BlogEntryTags], safe=True)
     app.run(debug=True)
 
 if __name__ == '__main__':
