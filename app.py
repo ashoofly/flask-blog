@@ -79,6 +79,26 @@ class Entry(flask_db.Model):
             maxwidth=app.config['SITE_WIDTH'])
         return Markup(oembed_content)
 
+    # returns array of tag labels
+    def get_tags(self):
+        tag_array = []
+        if self.tag_entries:
+            for entry in self.tag_entries:
+                tag_array.append(entry.tag.label)
+            return tag_array
+        else:
+            return None
+
+    # returns tag list in comma-separated string format
+    def tag_string_list(self):
+        tags = self.get_tags()
+        if tags:
+            return ", ".join(tags)
+        else:
+            return ""
+
+
+
     def save(self, *args, **kwargs):
         # Generate a URL-friendly representation of the entry's title.
         if not self.slug:
@@ -144,11 +164,11 @@ class FTSEntry(FTSModel):
         database = database
 
 class Tag(flask_db.Model):
-    tag = CharField(unique=True)
+    label = CharField(unique=True)
 
 class BlogEntryTags(flask_db.Model):
-    blog_entry = ForeignKeyField(Entry)
-    tag = ForeignKeyField(Tag, related_name="tags")
+    blog_entry = ForeignKeyField(Entry, related_name="tag_entries")
+    tag = ForeignKeyField(Tag)
 
 
 def login_required(fn):
@@ -211,23 +231,11 @@ def create():
                 published=request.form.get('published') or False)
 
             # loop through creating tags
-            if request.form.get('tags'):
-                # TODO: Better user input handling here
-                tags = request.form['tags'].split(", ")
-                for t in tags:
-
-                    # creates tag entry in Tag table if doesn't exist yet
-                    try:
-                        tag_model = Tag.get(Tag.tag == t)
-                    except Tag.DoesNotExist:
-                        tag_model = Tag.create(tag=t)
-
-                    # creates row in blog-entry many-to-many relationship table
-                    BlogEntryTags.create(
-                        blog_entry=entry.id,
-                        tag=tag_model.id)
+            save_tags(request, entry)
+            entry.save()
 
             flash('Entry created successfully.', 'success')
+
             if entry.published:
                 return redirect(url_for('detail', slug=entry.slug))
             else:
@@ -251,18 +259,27 @@ def detail(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
 
+@app.route('/tag/<label>/')
+def tag(label):
+    return render_template('tag.html', label=label)
+
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
 def edit(slug):
     entry = get_object_or_404(Entry, Entry.slug == slug)
+
     if request.method == 'POST':
         if request.form.get('title') and request.form.get('content'):
             entry.title = request.form['title']
             entry.content = request.form['content']
             entry.published = request.form.get('published') or False
-            entry.save()
 
+            # loop through creating tags
+            save_tags(request, entry)
+
+            entry.save()
             flash('Entry saved successfully.', 'success')
+
             if entry.published:
                 return redirect(url_for('detail', slug=entry.slug))
             else:
@@ -271,6 +288,24 @@ def edit(slug):
             flash('Title and Content are required.', 'danger')
 
     return render_template('edit.html', entry=entry)
+
+def save_tags(request, entry):
+    if request.form.get('tags'):
+        # TODO: Better user input handling here
+        tags = request.form['tags'].split(", ")
+        for t in tags:
+
+            # creates tag entry in Tag table if doesn't exist yet
+            try:
+                tag_model = Tag.get(Tag.label == t)
+            except Tag.DoesNotExist:
+                tag_model = Tag.create(label=t)
+
+                # creates row in blog-entry many-to-many relationship table
+                BlogEntryTags.create(
+                    blog_entry=entry.id,
+                    tag=tag_model.id)
+
 
 @app.template_filter('clean_querystring')
 def clean_querystring(request_args, *keys_to_remove, **new_values):
