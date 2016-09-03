@@ -57,7 +57,7 @@ oembed_providers = bootstrap_basic(OEmbedCache())
 
 class Entry(flask_db.Model):
     title = CharField()
-    slug = CharField(unique=True)
+    slug = CharField()
     content = TextField()
     published = BooleanField(index=True)
     timestamp = DateTimeField(default=datetime.datetime.now, index=True)
@@ -79,6 +79,26 @@ class Entry(flask_db.Model):
             maxwidth=app.config['SITE_WIDTH'])
         return Markup(oembed_content)
 
+    # returns array of tag labels
+    def get_tags(self):
+        tag_array = []
+        if self.tag_entries:
+            for entry in self.tag_entries:
+                tag_array.append(entry.tag.label)
+            return tag_array
+        else:
+            return None
+
+    # returns tag list in comma-separated string format
+    def tag_string_list(self):
+        tags = self.get_tags()
+        if tags:
+            return ", ".join(tags)
+        else:
+            return ""
+
+
+
     def save(self, *args, **kwargs):
         # Generate a URL-friendly representation of the entry's title.
         if not self.slug:
@@ -87,6 +107,7 @@ class Entry(flask_db.Model):
 
         # Store search content.
         self.update_search_index()
+
         return ret
 
     def update_search_index(self):
@@ -141,6 +162,17 @@ class FTSEntry(FTSModel):
 
     class Meta:
         database = database
+
+class Tag(flask_db.Model):
+    label = CharField(unique=True)
+
+class BlogEntryTags(flask_db.Model):
+    blog_entry = ForeignKeyField(Entry, related_name="tag_entries")
+    tag = ForeignKeyField(Tag)
+
+    class Meta:
+        primary_key = CompositeKey('blog_entry', 'tag')
+
 
 def login_required(fn):
     @functools.wraps(fn)
@@ -200,7 +232,13 @@ def create():
                 title=request.form['title'],
                 content=request.form['content'],
                 published=request.form.get('published') or False)
+
+            # loop through creating tags
+            update_tags(request, entry)
+            entry.save()
+
             flash('Entry created successfully.', 'success')
+
             if entry.published:
                 return redirect(url_for('detail', slug=entry.slug))
             else:
@@ -224,18 +262,31 @@ def detail(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
 
+@app.route('/tag/<label>/')
+def tag(label):
+    query = Entry.select()\
+        .join(BlogEntryTags)\
+        .join(Tag)\
+        .where(Tag.label == label)
+    return object_list('tag.html', query, label=label)
+
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
 def edit(slug):
     entry = get_object_or_404(Entry, Entry.slug == slug)
+
     if request.method == 'POST':
         if request.form.get('title') and request.form.get('content'):
             entry.title = request.form['title']
             entry.content = request.form['content']
             entry.published = request.form.get('published') or False
-            entry.save()
 
+            # loop through creating tags
+            update_tags(request, entry)
+
+            entry.save()
             flash('Entry saved successfully.', 'success')
+
             if entry.published:
                 return redirect(url_for('detail', slug=entry.slug))
             else:
@@ -244,6 +295,47 @@ def edit(slug):
             flash('Title and Content are required.', 'danger')
 
     return render_template('edit.html', entry=entry)
+
+
+def update_search_index(self):
+    # Create a row in the FTSEntry table with the post content. This will
+    # allow us to use SQLite's awesome full-text search extension to
+    # search our entries.
+    try:
+        fts_entry = FTSEntry.get(FTSEntry.entry_id == self.id)
+    except FTSEntry.DoesNotExist:
+        fts_entry = FTSEntry(entry_id=self.id)
+        fts_entry.content = '\n'.join((self.title, self.content))
+        fts_entry.save(force_insert=True)
+
+    else:
+        # TODO: Bug in peewee.py line 4971 where force_insert=False
+        # forces this workaround
+        fts_entry.content = '\n'.join((self.title, self.content))
+        FTSEntry.update(content=fts_entry.content).where(FTSEntry.entry_id == self.id)
+
+
+def update_tags(request, entry):
+    if request.form.get('tags'):
+        # TODO: Better user input handling here
+        tags = request.form['tags'].split(", ")
+        for t in tags:
+
+            # creates tag if doesn't exist yet
+            try:
+                tag_model = Tag.get(Tag.label == t)
+            except Tag.DoesNotExist:
+                tag_model = Tag.create(label=t)
+
+            # creates relationship if doesn't exist
+            try:
+                entry_tag = BlogEntryTags.get(blog_entry=entry.id,
+                                              tag=tag_model.id)
+            except BlogEntryTags.DoesNotExist:
+                entry_tag = BlogEntryTags(blog_entry=entry.id, tag=tag_model.id)
+                entry_tag.save(force_insert=True)
+
+
 
 @app.template_filter('clean_querystring')
 def clean_querystring(request_args, *keys_to_remove, **new_values):
@@ -263,7 +355,7 @@ def not_found(exc):
     return Response('<h3>Not found</h3>'), 404
 
 def main():
-    database.create_tables([Entry, FTSEntry], safe=True)
+    database.create_tables([Entry, FTSEntry, Tag, BlogEntryTags], safe=True)
     app.run(debug=True)
 
 if __name__ == '__main__':

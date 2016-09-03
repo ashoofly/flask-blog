@@ -5,12 +5,19 @@
 {% block content_title %}{{ entry.title }}{% endblock %}
 
 {% block extra_header %}
-  {% if session.logged_in %}
-    <li><a href="{{ url_for('edit', slug=entry.slug) }}">Edit entry</a></li>
-  {% endif %}
+    {% if session.logged_in %}
+        <li><a href="{{ url_for('edit', slug=entry.slug) }}">Edit entry</a></li>
+    {% endif %}
 {% endblock %}
 
 {% block content %}
-  <p>Created {{ entry.timestamp.strftime('%m/%d/%Y at %I:%M%p') }}</p>
-  {{ entry.html_content }}
+    {{ entry.html_content }}
+    {% if entry.get_tags() %}
+        <p>Tags: {% for tag in entry.get_tags() %}
+            <a href="{{ url_for('tag', label=tag) }}">{{ tag }}</a>
+            {% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+    {% endif %}
+    <p>Created {{ entry.timestamp.strftime('%m/%d/%Y at %I:%M%p') }}</p>
 {% endblock %}
