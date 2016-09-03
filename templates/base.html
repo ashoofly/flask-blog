@@ -6,11 +6,24 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
-    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/blog.min.css') }}" />
     <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/hilite.css') }}" />
+     <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+    <link href="../../assets/css/ie10-viewport-bug-workaround.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/blog.min.css') }}" />
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/bootstrap_blog.css') }}" />
+
     {% block extra_head %}{% endblock %}
     <script src="{{ url_for('static', filename='js/jquery-1.11.0.min.js') }}" type="text/javascript"></script>
     <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
     {% block extra_scripts %}{% endblock %}
   </head>
 
@@ -49,25 +62,57 @@
     </div>
 
     <div class="container">
-      {% for category, message in get_flashed_messages(with_categories=true) %}
-        <div class="alert alert-{{ category }} alert-dismissable">
-          <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-          <p>{{ message }}</p>
-        </div>
-      {% endfor %}
 
+      <div class="blog-header">
       {% block page_header %}
-        <div class="page-header">
-          <h1>{% block content_title %}{% endblock %}</h1>
-        </div>
+            <div class="blog-title">
+              <h1>{% block content_title %}{% endblock %}</h1>
+            </div>
       {% endblock %}
 
-      {% block content %}{% endblock %}
+      </div>
+
+
+      <div class="row">
+        <div class="col-sm-8 blog-main">
+          {% for category, message in get_flashed_messages(with_categories=true) %}
+            <div class="alert alert-{{ category }} alert-dismissable">
+              <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+              <p>{{ message }}</p>
+            </div>
+          {% endfor %}
+
+
+
+          {% block content %}{% endblock %}
+        </div>
+
+      <div class="col-sm-3 col-sm-offset-1 blog-sidebar">
+        <div class="sidebar-module">
+            <h4>Tags</h4>
+              {% if tags %}
+              <ol class="list-unstyled">
+                {% for tag in tags %}
+                <li><a href="{{ url_for('tag', label=tag.label) }}">{{ tag.label }}</a></li>
+                {% endfor %}
+              </ol>
+              {% else %}
+              <p>No tags found.</p>
+              {% endif %}
+        </div>
+      </div>
+
+
+      </div>
+
+
 
       <footer>
         <hr />
         <p>Blog, &copy; 2016</p>
       </footer>
+
     </div>
+
   </body>
 </html>

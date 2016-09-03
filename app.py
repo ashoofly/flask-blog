@@ -270,6 +270,10 @@ def tag(label):
         .where(Tag.label == label)
     return object_list('tag.html', query, label=label)
 
+@app.context_processor
+def inject_tags():
+    return dict(tags=sorted(Tag.select(), key=lambda tag : tag.label))
+
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
 def edit(slug):
