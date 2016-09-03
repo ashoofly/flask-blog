@@ -12,10 +12,12 @@
 
 {% block content %}
     {{ entry.html_content }}
-    <p>Tags: {% for tag in entry.get_tags() %}
-        <a href="{{ url_for('tag', label=tag) }}">{{ tag }}</a>
-        {% if not loop.last %}, {% endif %}
-        {% endfor %}
-    </p>
+    {% if entry.get_tags() %}
+        <p>Tags: {% for tag in entry.get_tags() %}
+            <a href="{{ url_for('tag', label=tag) }}">{{ tag }}</a>
+            {% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+    {% endif %}
     <p>Created {{ entry.timestamp.strftime('%m/%d/%Y at %I:%M%p') }}</p>
 {% endblock %}

@@ -170,6 +170,9 @@ class BlogEntryTags(flask_db.Model):
     blog_entry = ForeignKeyField(Entry, related_name="tag_entries")
     tag = ForeignKeyField(Tag)
 
+    class Meta:
+        primary_key = CompositeKey('blog_entry', 'tag')
+
 
 def login_required(fn):
     @functools.wraps(fn)
@@ -231,7 +234,7 @@ def create():
                 published=request.form.get('published') or False)
 
             # loop through creating tags
-            save_tags(request, entry)
+            update_tags(request, entry)
             entry.save()
 
             flash('Entry created successfully.', 'success')
@@ -261,7 +264,11 @@ def detail(slug):
 
 @app.route('/tag/<label>/')
 def tag(label):
-    return render_template('tag.html', label=label)
+    query = Entry.select()\
+        .join(BlogEntryTags)\
+        .join(Tag)\
+        .where(Tag.label == label)
+    return object_list('tag.html', query, label=label)
 
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
@@ -275,7 +282,7 @@ def edit(slug):
             entry.published = request.form.get('published') or False
 
             # loop through creating tags
-            save_tags(request, entry)
+            update_tags(request, entry)
 
             entry.save()
             flash('Entry saved successfully.', 'success')
@@ -289,22 +296,45 @@ def edit(slug):
 
     return render_template('edit.html', entry=entry)
 
-def save_tags(request, entry):
+
+def update_search_index(self):
+    # Create a row in the FTSEntry table with the post content. This will
+    # allow us to use SQLite's awesome full-text search extension to
+    # search our entries.
+    try:
+        fts_entry = FTSEntry.get(FTSEntry.entry_id == self.id)
+    except FTSEntry.DoesNotExist:
+        fts_entry = FTSEntry(entry_id=self.id)
+        fts_entry.content = '\n'.join((self.title, self.content))
+        fts_entry.save(force_insert=True)
+
+    else:
+        # TODO: Bug in peewee.py line 4971 where force_insert=False
+        # forces this workaround
+        fts_entry.content = '\n'.join((self.title, self.content))
+        FTSEntry.update(content=fts_entry.content).where(FTSEntry.entry_id == self.id)
+
+
+def update_tags(request, entry):
     if request.form.get('tags'):
         # TODO: Better user input handling here
         tags = request.form['tags'].split(", ")
         for t in tags:
 
-            # creates tag entry in Tag table if doesn't exist yet
+            # creates tag if doesn't exist yet
             try:
                 tag_model = Tag.get(Tag.label == t)
             except Tag.DoesNotExist:
                 tag_model = Tag.create(label=t)
 
-                # creates row in blog-entry many-to-many relationship table
-                BlogEntryTags.create(
-                    blog_entry=entry.id,
-                    tag=tag_model.id)
+            # creates relationship if doesn't exist
+            try:
+                entry_tag = BlogEntryTags.get(blog_entry=entry.id,
+                                              tag=tag_model.id)
+            except BlogEntryTags.DoesNotExist:
+                entry_tag = BlogEntryTags(blog_entry=entry.id, tag=tag_model.id)
+                entry_tag.save(force_insert=True)
+
 
 
 @app.template_filter('clean_querystring')
