@@ -15,6 +15,9 @@ from peewee import *
 from playhouse.flask_utils import FlaskDB, get_object_or_404, object_list
 from playhouse.sqlite_ext import *
 
+from pygments.styles import STYLE_MAP, get_all_styles
+
+
 
 # Blog configuration values.
 
@@ -69,9 +72,9 @@ class Entry(flask_db.Model):
         and also convert any media URLs into rich media objects such as video
         players or images.
         """
-        hilite = CodeHiliteExtension(linenums=False, css_class='highlight')
+        # hilite = CodeHiliteExtension(linenums=False, noclasses=True, pygments_style="native")
         extras = ExtraExtension()
-        markdown_content = markdown(self.content, extensions=[hilite, extras])
+        markdown_content = markdown(self.content, extensions=[extras])
         oembed_content = parse_html(
             markdown_content,
             oembed_providers,
@@ -255,6 +258,10 @@ def drafts():
 
 @app.route('/<slug>/')
 def detail(slug):
+
+    print STYLE_MAP.keys()
+
+
     if session.get('logged_in'):
         query = Entry.select()
     else:
