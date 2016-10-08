@@ -330,6 +330,19 @@ def update_tags(request, entry):
     if request.form.get('tags'):
         # TODO: Better user input handling here
         tags = request.form['tags'].split(", ")
+
+        # Delete any existing tags in current entry that do not appear in current form field
+        oldTags = entry.get_tags()
+        if oldTags:
+            toRemove = list(set(oldTags)-set(tags))
+            for r in toRemove:
+                tag_model = Tag.get(Tag.label == r)
+                tagRelationship = BlogEntryTags.get(blog_entry=entry.id,
+                                                    tag=tag_model.id)
+                if tagRelationship:
+                    tagRelationship.delete_instance()
+
+
         for t in tags:
 
             # creates tag if doesn't exist yet
@@ -345,6 +358,8 @@ def update_tags(request, entry):
             except BlogEntryTags.DoesNotExist:
                 entry_tag = BlogEntryTags(blog_entry=entry.id, tag=tag_model.id)
                 entry_tag.save(force_insert=True)
+
+
 
 
 
