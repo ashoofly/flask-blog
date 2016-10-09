@@ -6,6 +6,7 @@ import urllib
 
 from flask import (Flask, flash, Markup, redirect, render_template, request,
                    Response, session, url_for)
+from flask_bcrypt import Bcrypt
 from markdown import markdown
 from markdown.extensions.codehilite import CodeHiliteExtension
 from markdown.extensions.extra import ExtraExtension
@@ -16,7 +17,6 @@ from playhouse.flask_utils import FlaskDB, get_object_or_404, object_list
 from playhouse.sqlite_ext import *
 
 from pygments.styles import STYLE_MAP, get_all_styles
-
 
 
 # Blog configuration values.
@@ -52,11 +52,13 @@ flask_db = FlaskDB(app)
 # the wrapper.
 database = flask_db.database
 
+# password encryption
+bcrypt = Bcrypt(app)
+
 # Configure micawber with the default OEmbed providers (YouTube, Flickr, etc).
 # We'll use a simple in-memory cache so that multiple requests for the same
 # video don't require multiple network requests.
 oembed_providers = bootstrap_basic(OEmbedCache())
-
 
 class Entry(flask_db.Model):
     title = CharField()
@@ -190,9 +192,9 @@ def login():
     next_url = request.args.get('next') or request.form.get('next')
     if request.method == 'POST' and request.form.get('password'):
         password = request.form.get('password')
-        # TODO: If using a one-way hash, you would also hash the user-submitted
-        # password and do the comparison on the hashed versions.
-        if password == app.config['ADMIN_PASSWORD']:
+        f = open('admin_password_hash', 'r')
+        hash = f.read()
+        if bcrypt.check_password_hash(hash, password):
             session['logged_in'] = True
             session.permanent = True  # Use cookie to store session.
             flash('You are now logged in.', 'success')
