@@ -287,7 +287,25 @@ def edit(slug):
     entry = get_object_or_404(Entry, Entry.slug == slug)
 
     if request.method == 'POST':
-        if request.form.get('title') and request.form.get('content'):
+
+        if request.form.get('delete'):
+            entryTags = entry.get_tags()
+            entry.delete_instance(recursive=True)
+
+            #delete any tags if no entries in them anymore
+            for t in entryTags:
+                query = Entry.select() \
+                    .join(BlogEntryTags) \
+                    .join(Tag) \
+                    .where(Tag.label == t)
+                if query.count() == 0:
+                    tag_model = Tag.get(Tag.label == t)
+                    tag_model.delete_instance()
+
+            flash("Entry '" + slug + "' was deleted.", "success")
+            return redirect(url_for('index'))
+
+        elif request.form.get('title') and request.form.get('content'):
             entry.title = request.form['title']
             entry.content = request.form['content']
             entry.published = request.form.get('published') or False
@@ -306,7 +324,6 @@ def edit(slug):
             flash('Title and Content are required.', 'danger')
 
     return render_template('edit.html', entry=entry)
-
 
 def update_search_index(self):
     # Create a row in the FTSEntry table with the post content. This will
