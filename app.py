@@ -234,18 +234,26 @@ def create():
             entry = Entry.create(
                 title=request.form['title'],
                 content=request.form['content'],
-                published=request.form.get('published') or False)
+                published=False)
+
+            if request.form.get('publish'):
+                entry.published = True
 
             # loop through creating tags
             update_tags(request, entry)
             entry.save()
 
-            flash('Entry created successfully.', 'success')
+            if request.form.get('preview'):
+                return redirect(url_for('preview', slug=entry.slug))
 
-            if entry.published:
-                return redirect(url_for('detail', slug=entry.slug))
-            else:
+            elif request.form.get('save'):
+                flash('Entry saved successfully.', 'success')
                 return redirect(url_for('edit', slug=entry.slug))
+
+            elif request.form.get('publish'):
+                flash('Entry created successfully.', 'success')
+                return redirect(url_for('detail', slug=entry.slug))
+
         else:
             flash('Title and Content are required.', 'danger')
     return render_template('create.html')
@@ -268,6 +276,18 @@ def detail(slug):
         query = Entry.public()
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
+
+@app.route('/<slug>/preview')
+def preview(slug):
+
+    print STYLE_MAP.keys()
+
+    if session.get('logged_in'):
+        query = Entry.select()
+    else:
+        query = Entry.public()
+    entry = get_object_or_404(query, Entry.slug == slug)
+    return render_template('preview.html', entry=entry)
 
 @app.route('/tag/<label>/')
 def tag(label):
@@ -314,12 +334,17 @@ def edit(slug):
             update_tags(request, entry)
 
             entry.save()
-            flash('Entry saved successfully.', 'success')
 
-            if entry.published:
-                return redirect(url_for('detail', slug=entry.slug))
-            else:
-                return redirect(url_for('edit', slug=entry.slug))
+            if request.form.get('preview'):
+                return redirect(url_for('preview', slug=entry.slug))
+
+            elif request.form.get('save'):
+                flash('Entry saved successfully.', 'success')
+
+                if entry.published:
+                    return redirect(url_for('detail', slug=entry.slug))
+                else:
+                    return redirect(url_for('edit', slug=entry.slug))
         else:
             flash('Title and Content are required.', 'danger')
 
