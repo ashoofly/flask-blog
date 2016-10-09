@@ -38,9 +38,9 @@
     <div class="form-group">
       <div class="col-sm-offset-2 col-sm-10">
 
-          <button class="btn btn-primary" type="submit">Save</button>
+          <button class="btn btn-primary" type="submit" name="save" value="save">Save</button>
           <a class="btn btn-default" href="{{ url_for('index') }}">Cancel</a>
-          <a class="btn btn-warning pull-right" href="{{ url_for('index') }}">Delete</a>
+          <button class="btn btn-warning pull-right" type="submit" name="delete" value="delete">Delete</button>
 
       </div>
     </div>
