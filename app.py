@@ -210,6 +210,10 @@ def logout():
         return redirect(url_for('login'))
     return render_template('logout.html')
 
+@app.route('/home/', methods=['GET'])
+def home():
+    return render_template('home.html')
+
 @app.route('/')
 def index():
     search_query = request.args.get('q')

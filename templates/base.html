@@ -93,6 +93,8 @@
 
       <div class="col-sm-2 col-sm-offset-1 blog-sidebar">
         <div class="sidebar-module">
+
+            {% block side_module %}
             <h4>Tags</h4>
               {% if tags %}
               <ol class="list-unstyled">
@@ -103,6 +105,8 @@
               {% else %}
               <p>No tags found.</p>
               {% endif %}
+
+             {% endblock %}
         </div>
       </div>
 
