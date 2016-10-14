@@ -1,0 +1,77 @@
+.tags {
+    max-width:800px;
+    overflow: hidden;
+    margin: 10px auto 30px;
+    line-height: 1.6em;
+}
+.tags li {
+    float: left;
+    /* min-width: 100px; */
+    height: 3em;
+    list-style-type: none;
+    margin: 0;
+    padding: 0 0 0 20px;
+    letter-spacing: -1px;
+    font-family: 'Baloo Chettan', serif;
+    /* font-family: 'Montserrat', sans-serif; */
+    /* font-family: Georgia,"Times New Roman",Serif; */
+}
+.tags li a {
+    position: relative;
+    top: 0px;
+    left: -10px;
+    z-index: 10;
+    margin: 0;
+    padding: 0 5px;
+    color: #000;
+    font-size: 1em;
+    text-decoration: none;
+}
+#contents .tags li a:hover {
+    text-decoration: underline;
+    position: relative;
+    z-index: 50;
+    color: #F00;
+}
+.tags li.tagRank1 {
+}
+.tags li.tagRank1 a {
+    font-size: 2.8em;
+}
+.tags li.tagRank2 a {
+    font-size: 2.6em;
+    color: #282828;
+}
+.tags li.tagRank3 a {
+    font-size: 2.4em;
+    color: #383838;
+}
+.tags li.tagRank4 a {
+    font-size: 2.2em;
+    color: #484848;
+}
+.tags li.tagRank5 a {
+    font-size: 2em;
+    color: #606060;
+}
+/*
+.tags li.tagRank6 a {
+    font-size: 1.8em;
+    color: #404040;
+}
+.tags li.tagRank7 a {
+    font-size: 1.6em;
+    color: #484848;
+}
+.tags li.tagRank8 a {
+    font-size: 1.4em;
+    color: #505050;
+}
+.tags li.tagRank9 a {
+    font-size: 1.2em;
+    color: #585858;
+}
+.tags li.tagRank10 a {
+    font-size: 1em;
+    color: #606060;
+} */
