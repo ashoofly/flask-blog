@@ -450,10 +450,10 @@ def update_search_index(self):
 def update_tags(request, entry):
     if request.form.get('tags'):
         # TODO: Better user input handling here
-        tags = request.form['tags'].split(", ")
+        tags = [tag.lower() for tag in request.form['tags'].split(", ")]
 
         # Delete any existing tags in current entry that do not appear in current form field
-        oldTags = entry.get_tags()
+        oldTags = [tag.lower() for tag in entry.get_tags()]
         if oldTags:
             toRemove = list(set(oldTags)-set(tags))
             for r in toRemove:
@@ -462,6 +462,22 @@ def update_tags(request, entry):
                                                     tag=tag_model.id)
                 if tagRelationship:
                     tagRelationship.delete_instance()
+
+                # remove tag entirely if no entries left
+                query = Entry.select() \
+                    .join(BlogEntryTags) \
+                    .join(Tag) \
+                    .where(Tag.label == r)
+                if query.count() == 0:
+                    tag_model = Tag.get(Tag.label == r)
+                    tag_model.delete_instance()
+
+                # remove from tag count dict
+                count = tag_count_dict.get(r)
+                if count is not None and count > 0:
+                    tag_count_dict[r] -= 1
+
+
 
         for t in tags:
 
