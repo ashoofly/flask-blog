@@ -2,24 +2,39 @@
 
 {% block title %}Blog entries{% endblock %}
 
-{% block content_title %}{% if search %}Search "{{ search }}"{% else %}my code wiki{% endif %}{% endblock %}
+{% block content_title %}{% endblock %}
 
 {% block content %}
 
-    {% for entry in object_list %}
-      {% if search %}
-        {% set entry = entry.entry %}
-      {% endif %}
-      <h3 class="blog-post-title">
-        <a href="{% if entry.published %}{{ url_for('detail', slug=entry.slug) }}{% else %}{{ url_for('edit', slug=entry.slug) }}{% endif %}">
-          {{ entry.title }}
-        </a>
-      </h3>
-      <p class="blog-post-meta">Created {{ entry.timestamp.strftime('%m/%d/%Y at %I:%M%p') }}</p>
-    {% else %}
-      <p>No entries have been created yet.</p>
-    {% endfor %}
-    {% include "includes/pagination.html" %}
+    {% if tags %}
+    <div class=tags>
+        <ul>
+          {% for tag in tags | rank_tags %}
+            <li class={{tag.level}}><a href="{{ url_for('tag', label=tag.label) }}">{{tag.label}}</a></li>
+          {% endfor %}
+        </ul>
+    </div>
+
+    {% endif %}
 
 
 {% endblock %}
+
+
+{% block side_module %}
+    <h4>Recent Posts</h4>
+
+    <ol class="list-unstyled">
+    {% for entry in entries | get_recent %}
+        <li><a href="{% if entry.published %}{{ url_for('detail', slug=entry.slug) }}{% else %}{{ url_for('edit', slug=entry.slug) }}{% endif %}">
+          {{ entry.title }}
+        </a></li>
+        <p class="blog-post-meta">{{ entry.timestamp.strftime('%b %d, %Y') }}</p>
+        {% else %}
+          <p>No entries have been created yet.</p>
+        {% endfor %}
+    </ol>
+
+    <a href="{{ url_for('index', allEntries=true) }}"><strong>See all posts...</strong></a>
+
+ {% endblock %}

@@ -1,22 +1,20 @@
 import datetime
-import functools
-import os
-import re
+import statistics
 import urllib
 
 from flask import (Flask, flash, Markup, redirect, render_template, request,
                    Response, session, url_for)
 from flask_bcrypt import Bcrypt
 from markdown import markdown
-from markdown.extensions.codehilite import CodeHiliteExtension
 from markdown.extensions.extra import ExtraExtension
 from micawber import bootstrap_basic, parse_html
 from micawber.cache import Cache as OEmbedCache
-from peewee import *
 from playhouse.flask_utils import FlaskDB, get_object_or_404, object_list
 from playhouse.sqlite_ext import *
+from playhouse.migrate import *
 
-from pygments.styles import STYLE_MAP, get_all_styles
+
+from pygments.styles import STYLE_MAP
 
 
 # Blog configuration values.
@@ -24,7 +22,6 @@ from pygments.styles import STYLE_MAP, get_all_styles
 # You may consider using a one-way hash to generate the password, and then
 # use the hash again in the login view to perform the comparison. This is just
 # for simplicity.
-ADMIN_PASSWORD = 'secret'
 APP_DIR = os.path.dirname(os.path.realpath(__file__))
 
 # The playhouse.flask_utils.FlaskDB object accepts database URL configuration.
@@ -51,6 +48,7 @@ flask_db = FlaskDB(app)
 # The `database` is the actual peewee database, as opposed to flask_db which is
 # the wrapper.
 database = flask_db.database
+migrator = SqliteMigrator(database)
 
 # password encryption
 bcrypt = Bcrypt(app)
@@ -59,6 +57,9 @@ bcrypt = Bcrypt(app)
 # We'll use a simple in-memory cache so that multiple requests for the same
 # video don't require multiple network requests.
 oembed_providers = bootstrap_basic(OEmbedCache())
+
+tag_count_dict = {}
+
 
 class Entry(flask_db.Model):
     title = CharField()
@@ -161,6 +162,7 @@ class Entry(flask_db.Model):
                     (FTSEntry.match(search)))
                 .order_by(SQL('score').desc()))
 
+
 class FTSEntry(FTSModel):
     entry_id = IntegerField(Entry)
     content = TextField()
@@ -168,8 +170,11 @@ class FTSEntry(FTSModel):
     class Meta:
         database = database
 
+
 class Tag(flask_db.Model):
     label = CharField(unique=True)
+    level = CharField(null=True)
+
 
 class BlogEntryTags(flask_db.Model):
     blog_entry = ForeignKeyField(Entry, related_name="tag_entries")
@@ -187,6 +192,7 @@ def login_required(fn):
         return redirect(url_for('login', next=request.path))
     return inner
 
+
 @app.route('/login/', methods=['GET', 'POST'])
 def login():
     next_url = request.args.get('next') or request.form.get('next')
@@ -203,6 +209,7 @@ def login():
             flash('Incorrect password.', 'danger')
     return render_template('login.html', next_url=next_url)
 
+
 @app.route('/logout/', methods=['GET', 'POST'])
 def logout():
     if request.method == 'POST':
@@ -210,23 +217,39 @@ def logout():
         return redirect(url_for('login'))
     return render_template('logout.html')
 
+
 @app.route('/')
 def index():
-    search_query = request.args.get('q')
-    if search_query:
-        query = Entry.search(search_query)
-    else:
-        query = Entry.public().order_by(Entry.timestamp.desc())
 
-    # The `object_list` helper will take a base query and then handle
-    # paginating the results if there are more than 20. For more info see
-    # the docs:
-    # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#object_list
-    return object_list(
-        'index.html',
-        query,
-        search=search_query,
-        check_bounds=False)
+    see_all_posts = request.args.get('allEntries')
+    search_query = request.args.get('q')
+
+    if see_all_posts:
+        query = Entry.public().order_by(Entry.timestamp.desc())
+        return object_list(
+            'entries.html',
+            query,
+            search=search_query,
+            check_bounds=False)
+
+    elif search_query:
+        query = Entry.search(search_query)
+    # else:
+    #     query = Entry.public().order_by(Entry.timestamp.desc())
+
+        # The `object_list` helper will take a base query and then handle
+        # paginating the results if there are more than 20. For more info see
+        # the docs:
+        # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#object_list
+        return object_list(
+            'entries.html',
+            query,
+            search=search_query,
+            check_bounds=False)
+
+    else:
+        return render_template('index.html')
+
 
 @app.route('/create/', methods=['GET', 'POST'])
 @login_required
@@ -260,11 +283,13 @@ def create():
             flash('Title and Content are required.', 'danger')
     return render_template('create.html')
 
+
 @app.route('/drafts/')
 @login_required
 def drafts():
     query = Entry.drafts().order_by(Entry.timestamp.desc())
-    return object_list('index.html', query, check_bounds=False)
+    return object_list('entries.html', query, check_bounds=False)
+
 
 @app.route('/<slug>/')
 def detail(slug):
@@ -279,6 +304,7 @@ def detail(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
 
+
 @app.route('/<slug>/preview')
 def preview(slug):
 
@@ -291,17 +317,63 @@ def preview(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('preview.html', entry=entry)
 
+
 @app.route('/tag/<label>/')
 def tag(label):
     query = Entry.select()\
         .join(BlogEntryTags)\
         .join(Tag)\
-        .where(Tag.label == label)
+        .where(Tag.label == label).order_by(Entry.timestamp.desc())
     return object_list('tag.html', query, label=label)
+
 
 @app.context_processor
 def inject_tags():
-    return dict(tags=sorted(Tag.select(), key=lambda tag : tag.label))
+    tags = Tag.select()
+    if not session.get('logged_in'):
+        published_tags = []
+        for tag in tags:
+            published = Entry.select() \
+                .join(BlogEntryTags) \
+                .join(Tag) \
+                .where(Tag.label == tag.label, Entry.published == True).count()
+            if published > 0:
+                published_tags.append(tag)
+        return dict(tags=sorted(published_tags, key=lambda tag: tag.label))
+
+    return dict(tags=sorted(tags, key=lambda tag : tag.label))
+
+
+@app.context_processor
+def inject_entries():
+    if not session.get('logged_in'):
+        published = [entry for entry in Entry.select() if entry.published]
+        return dict(entries=sorted(published, key=lambda entry : entry.timestamp, reverse=True))
+    return dict(entries=sorted(Entry.select(), key=lambda entry: entry.timestamp, reverse=True))
+
+
+@app.template_filter()
+def get_recent(entries):
+
+    return entries[:5]
+
+# TAG_RANK = ("tagRank10","tagRank9",
+# "tagRank8","tagRank7","tagRank6",
+# "tagRank5","tagRank4","tagRank3",
+# "tagRank2","tagRank1")
+
+TAG_RANK = ("tagRank5","tagRank4","tagRank3",
+"tagRank2","tagRank1")
+
+
+@app.template_filter()
+def rank_tags(tags):
+    maxPosts = max(tag_count_dict.values())
+    for tag in tags:
+        tag.level = TAG_RANK[int(float(tag_count_dict.get(tag.label))/maxPosts*len(TAG_RANK))-1]
+
+    return tags
+
 
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
@@ -323,6 +395,10 @@ def edit(slug):
                 if query.count() == 0:
                     tag_model = Tag.get(Tag.label == t)
                     tag_model.delete_instance()
+
+                count = tag_count_dict.get(t)
+                if count is not None and count > 0:
+                    tag_count_dict[t] -= 1
 
             flash("Entry '" + slug + "' was deleted.", "success")
             return redirect(url_for('index'))
@@ -351,6 +427,7 @@ def edit(slug):
             flash('Title and Content are required.', 'danger')
 
     return render_template('edit.html', entry=entry)
+
 
 def update_search_index(self):
     # Create a row in the FTSEntry table with the post content. This will
@@ -386,7 +463,6 @@ def update_tags(request, entry):
                 if tagRelationship:
                     tagRelationship.delete_instance()
 
-
         for t in tags:
 
             # creates tag if doesn't exist yet
@@ -395,6 +471,12 @@ def update_tags(request, entry):
             except Tag.DoesNotExist:
                 tag_model = Tag.create(label=t)
 
+            count = tag_count_dict.get(t)
+            if count is None:
+                tag_count_dict[t] = 1
+            else:
+                tag_count_dict[t] += 1
+
             # creates relationship if doesn't exist
             try:
                 entry_tag = BlogEntryTags.get(blog_entry=entry.id,
@@ -402,9 +484,6 @@ def update_tags(request, entry):
             except BlogEntryTags.DoesNotExist:
                 entry_tag = BlogEntryTags(blog_entry=entry.id, tag=tag_model.id)
                 entry_tag.save(force_insert=True)
-
-
-
 
 
 @app.template_filter('clean_querystring')
@@ -420,13 +499,26 @@ def clean_querystring(request_args, *keys_to_remove, **new_values):
     querystring.update(new_values)
     return urllib.urlencode(querystring)
 
+
 @app.errorhandler(404)
 def not_found(exc):
     return Response('<h3>Not found</h3>'), 404
 
+
+def populateTagCloudDict():
+    if not tag_count_dict:
+        for tag in Tag.select():
+            tag_count_dict[tag.label] = Entry.select() \
+                .join(BlogEntryTags) \
+                .join(Tag) \
+                .where(Tag.label == tag.label).count()
+
+
 def main():
     database.create_tables([Entry, FTSEntry, Tag, BlogEntryTags], safe=True)
+    populateTagCloudDict()
     app.run(debug=True)
+
 
 if __name__ == '__main__':
     main()
