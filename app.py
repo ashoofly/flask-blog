@@ -174,7 +174,6 @@ class FTSEntry(FTSModel):
 class Tag(flask_db.Model):
     label = CharField(unique=True)
     level = CharField(null=True)
-    # migrate(migrator.add_column('Tag', 'level', level))
 
 
 class BlogEntryTags(flask_db.Model):
@@ -193,6 +192,7 @@ def login_required(fn):
         return redirect(url_for('login', next=request.path))
     return inner
 
+
 @app.route('/login/', methods=['GET', 'POST'])
 def login():
     next_url = request.args.get('next') or request.form.get('next')
@@ -209,6 +209,7 @@ def login():
             flash('Incorrect password.', 'danger')
     return render_template('login.html', next_url=next_url)
 
+
 @app.route('/logout/', methods=['GET', 'POST'])
 def logout():
     if request.method == 'POST':
@@ -216,9 +217,6 @@ def logout():
         return redirect(url_for('login'))
     return render_template('logout.html')
 
-# @app.route('/home/', methods=['GET'])
-# def home():
-#     return render_template('index.html')
 
 @app.route('/')
 def index():
@@ -252,6 +250,7 @@ def index():
     else:
         return render_template('index.html')
 
+
 @app.route('/create/', methods=['GET', 'POST'])
 @login_required
 def create():
@@ -284,11 +283,13 @@ def create():
             flash('Title and Content are required.', 'danger')
     return render_template('create.html')
 
+
 @app.route('/drafts/')
 @login_required
 def drafts():
     query = Entry.drafts().order_by(Entry.timestamp.desc())
     return object_list('entries.html', query, check_bounds=False)
+
 
 @app.route('/<slug>/')
 def detail(slug):
@@ -303,6 +304,7 @@ def detail(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
 
+
 @app.route('/<slug>/preview')
 def preview(slug):
 
@@ -315,6 +317,7 @@ def preview(slug):
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('preview.html', entry=entry)
 
+
 @app.route('/tag/<label>/')
 def tag(label):
     query = Entry.select()\
@@ -322,6 +325,7 @@ def tag(label):
         .join(Tag)\
         .where(Tag.label == label).order_by(Entry.timestamp.desc())
     return object_list('tag.html', query, label=label)
+
 
 @app.context_processor
 def inject_tags():
@@ -338,6 +342,7 @@ def inject_tags():
         return dict(tags=sorted(published_tags, key=lambda tag: tag.label))
 
     return dict(tags=sorted(tags, key=lambda tag : tag.label))
+
 
 @app.context_processor
 def inject_entries():
@@ -360,6 +365,7 @@ def get_recent(entries):
 TAG_RANK = ("tagRank5","tagRank4","tagRank3",
 "tagRank2","tagRank1")
 
+
 @app.template_filter()
 def rank_tags(tags):
     maxPosts = max(tag_count_dict.values())
@@ -367,6 +373,7 @@ def rank_tags(tags):
         tag.level = TAG_RANK[int(float(tag_count_dict.get(tag.label))/maxPosts*len(TAG_RANK))-1]
 
     return tags
+
 
 @app.route('/<slug>/edit/', methods=['GET', 'POST'])
 @login_required
@@ -421,6 +428,7 @@ def edit(slug):
 
     return render_template('edit.html', entry=entry)
 
+
 def update_search_index(self):
     # Create a row in the FTSEntry table with the post content. This will
     # allow us to use SQLite's awesome full-text search extension to
@@ -455,7 +463,6 @@ def update_tags(request, entry):
                 if tagRelationship:
                     tagRelationship.delete_instance()
 
-
         for t in tags:
 
             # creates tag if doesn't exist yet
@@ -470,7 +477,6 @@ def update_tags(request, entry):
             else:
                 tag_count_dict[t] += 1
 
-
             # creates relationship if doesn't exist
             try:
                 entry_tag = BlogEntryTags.get(blog_entry=entry.id,
@@ -478,9 +484,6 @@ def update_tags(request, entry):
             except BlogEntryTags.DoesNotExist:
                 entry_tag = BlogEntryTags(blog_entry=entry.id, tag=tag_model.id)
                 entry_tag.save(force_insert=True)
-
-
-
 
 
 @app.template_filter('clean_querystring')
@@ -496,9 +499,11 @@ def clean_querystring(request_args, *keys_to_remove, **new_values):
     querystring.update(new_values)
     return urllib.urlencode(querystring)
 
+
 @app.errorhandler(404)
 def not_found(exc):
     return Response('<h3>Not found</h3>'), 404
+
 
 def populateTagCloudDict():
     if not tag_count_dict:
@@ -509,13 +514,11 @@ def populateTagCloudDict():
                 .where(Tag.label == tag.label).count()
 
 
-
-
-
 def main():
     database.create_tables([Entry, FTSEntry, Tag, BlogEntryTags], safe=True)
     populateTagCloudDict()
     app.run(debug=True)
+
 
 if __name__ == '__main__':
     main()
