@@ -320,7 +320,7 @@ def tag(label):
     query = Entry.select()\
         .join(BlogEntryTags)\
         .join(Tag)\
-        .where(Tag.label == label)
+        .where(Tag.label == label).order_by(Entry.timestamp.desc())
     return object_list('tag.html', query, label=label)
 
 @app.context_processor
