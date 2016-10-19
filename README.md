@@ -2,11 +2,11 @@
 Overview
 ---------
 This is a code box I made for myself, with a tag word cloud to visualize which topics I'm working on the most over time.  
-Example live here: http://ashoofly.pythonanywhere.com/
-
 
 Screenshots
 ------------
+See project live here: http://ashoofly.pythonanywhere.com/
+
 ![alt tag](screenshots/example_blog.png "Screenshot")
 
 
