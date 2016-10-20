@@ -453,8 +453,8 @@ def update_tags(request, entry):
         tags = [tag.lower() for tag in request.form['tags'].split(", ")]
 
         # Delete any existing tags in current entry that do not appear in current form field
-        oldTags = [tag.lower() for tag in entry.get_tags()]
-        if oldTags:
+        if entry.get_tags():
+            oldTags = [tag.lower() for tag in entry.get_tags()]
             toRemove = list(set(oldTags)-set(tags))
             for r in toRemove:
                 tag_model = Tag.get(Tag.label == r)
