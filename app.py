@@ -383,22 +383,23 @@ def edit(slug):
     if request.method == 'POST':
 
         if request.form.get('delete'):
-            entryTags = entry.get_tags()
             entry.delete_instance(recursive=True)
 
-            #delete any tags if no entries in them anymore
-            for t in entryTags:
-                query = Entry.select() \
-                    .join(BlogEntryTags) \
-                    .join(Tag) \
-                    .where(Tag.label == t)
-                if query.count() == 0:
-                    tag_model = Tag.get(Tag.label == t)
-                    tag_model.delete_instance()
+            # delete any tags if no entries in them anymore
+            entryTags = entry.get_tags()
+            if entryTags:
+                for t in entryTags:
+                    query = Entry.select() \
+                        .join(BlogEntryTags) \
+                        .join(Tag) \
+                        .where(Tag.label == t)
+                    if query.count() == 0:
+                        tag_model = Tag.get(Tag.label == t)
+                        tag_model.delete_instance()
 
-                count = tag_count_dict.get(t)
-                if count is not None and count > 0:
-                    tag_count_dict[t] -= 1
+                    count = tag_count_dict.get(t)
+                    if count is not None and count > 0:
+                        tag_count_dict[t] -= 1
 
             flash("Entry '" + slug + "' was deleted.", "success")
             return redirect(url_for('index'))
